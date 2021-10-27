@@ -1,0 +1,333 @@
+<?xml version="1.0" encoding="utf-8"?>
+<klayout-macro>
+ <description/>
+ <version/>
+ <category>pymacros</category>
+ <prolog/>
+ <epilog/>
+ <doc/>
+ <autorun>true</autorun>
+ <autorun-early>false</autorun-early>
+ <shortcut/>
+ <show-in-menu>false</show-in-menu>
+ <group-name/>
+ <menu-path/>
+ <interpreter>python</interpreter>
+ <dsl-interpreter-name/>
+ <text>import pya
+import math
+
+
+# Contact PCell decleration
+class Contact(pya.PCellDeclarationHelper):
+
+  def __init__(self):
+
+    # Important: initialize the super class
+    super(Contact, self).__init__()
+
+    # # declare the parameters
+    self.layer_choices = [("poly", 0), ("diff", 1), ("li", 2), ("met1", 3), ("met2", 4), ("met3", 5), ("met4", 6), ("tap", 7)]
+    self.param("bottom_layer", self.TypeInt, "Bottom Layer", choices=self.layer_choices)
+    self.param("nx", self.TypeInt, "Number Contacts (x)", default = 1)
+    self.param("ny", self.TypeInt, "Number Contacts (y)", default = 1)
+    #self.param("dx", self.TypeInt, "Width (x)", default = 0)
+    #self.param("dy", self.TypeInt, "Height (y)", default = 0)
+    self.param("x",  self.TypeDouble, "Width (x)", default = 0)
+    self.param("y",  self.TypeDouble, "Height (y)", default = 0)
+
+    # define the rules
+    self.diff_con_enc     = 0.060     # enclosure of contact by diff
+    self.tap_con_enc      = 0.120     # enclosure of contact by tap
+    self.npc_poly_con_enc = 0.100     # enclosure of poly contact by npc
+    self.poly_con_enc     = 0.050     # enclosure of poly contact by poly
+    self.licon_size       = 0.170     # poly/diff to licon contact size
+    self.licon_spacing    = 0.190     # poly/diff to licon contact to contact spacing
+    self.li_licon_enc     = 0.080     # enclosure of diffusion by doping
+    self.mcon_size        = 0.170     # li to met1 contact size
+    self.mcon_spacing     = 0.190     # li to met1 contact to contact spacing
+    self.mcon_met1_enc    = 0.060     # enclosure of contact  by met1
+    self.via1_size        = 0.150     # met1 to met2 via1 size
+    self.via1_spacing     = 0.170     # met1 to met2 via to via spacing
+    self.met1_via1_enc    = 0.085     # enclosure of via1 by met1
+    self.met2_via1_enc    = 0.085     # enclosure of via1 by met2
+    self.via2_size        = 0.200     # met2 to met3 via size
+    self.via2_spacing     = 0.200     # met2 to met3 via to via spacing
+    self.met2_via2_enc    = 0.085     # enclosure of via2 by met2
+    self.met3_via2_enc    = 0.085     # enclosure of via2 by met3
+    self.via3_size        = 0.200     # met3 to met4 via size
+    self.via3_spacing     = 0.350     # met3 to met4 via to via spacing
+    self.met3_via3_enc    = 0.090     # enclosure of via3 by met3
+    self.met4_via3_enc    = 0.090     # enclosure of via3 by met4
+    self.via4_size        = 0.800     # met4 to met5 via size
+    self.via4_spacing     = 0.800     # met4 to met5 via to via spacing
+    self.met4_via4_enc    = 0.190     # enclosure of via4 by met4
+    self.met5_via4_enc    = 0.310     # enclosure of via4 by met5
+  
+
+  def display_text_impl(self):
+    # Provide a descriptive text for the cell
+    return ("CONTACT = %s" % self.layer_choices[int(self.bottom_layer)][0].upper())
+
+
+  def produce_impl(self):
+
+    # define layers
+    self.layer_diff  = self.layout.layer(65, 20)
+    self.layer_tap   = self.layout.layer(65, 44)
+    self.layer_poly  = self.layout.layer(66, 20)
+    self.layer_npc   = self.layout.layer(95, 20)
+    self.layer_licon = self.layout.layer(66, 44)
+    self.layer_li    = self.layout.layer(67, 20)
+    self.layer_mcon  = self.layout.layer(67, 44)
+    self.layer_met1  = self.layout.layer(68, 20)
+    self.layer_via1  = self.layout.layer(68, 44)
+    self.layer_met2  = self.layout.layer(69, 20)
+    self.layer_via2  = self.layout.layer(69, 44)
+    self.layer_met3  = self.layout.layer(70, 20)
+    self.layer_via3  = self.layout.layer(70, 44)
+    self.layer_met4  = self.layout.layer(71, 20)
+    self.layer_via4  = self.layout.layer(71, 44)
+    self.layer_met5  = self.layout.layer(72, 20)
+
+    # select top, bottom and interconnect layers
+    self.selected_contact = self.layer_choices[int(self.bottom_layer)][0]
+    if self.selected_contact == "diff":
+      bottom_layer    = self.layer_diff
+      top_layer       = self.layer_li
+      contact_layer   = self.layer_licon
+      bottom_enc      = int(self.diff_con_enc *(1/self.layout.dbu))
+      contact_size    = int(self.licon_size   *(1/self.layout.dbu))
+      contact_spacing = int(self.licon_spacing*(1/self.layout.dbu))
+      top_enc         = int(self.li_licon_enc *(1/self.layout.dbu))
+
+    elif self.selected_contact == "poly":
+      bottom_layer    = self.layer_poly
+      top_layer       = self.layer_li
+      contact_layer   = self.layer_licon
+      bottom_enc      = int(self.poly_con_enc *(1/self.layout.dbu))
+      contact_size    = int(self.licon_size   *(1/self.layout.dbu))
+      contact_spacing = int(self.licon_spacing*(1/self.layout.dbu))
+      top_enc         = int(self.li_licon_enc *(1/self.layout.dbu))
+
+    elif self.selected_contact == "li":
+      bottom_layer    = self.layer_li
+      top_layer       = self.layer_met1
+      contact_layer   = self.layer_mcon
+      bottom_enc      = int(self.li_licon_enc *(1/self.layout.dbu))
+      contact_size    = int(self.mcon_size    *(1/self.layout.dbu))
+      contact_spacing = int(self.mcon_spacing *(1/self.layout.dbu))
+      top_enc         = int(self.mcon_met1_enc*(1/self.layout.dbu))
+
+    elif self.selected_contact == "met1":
+      bottom_layer    = self.layer_met1
+      top_layer       = self.layer_met2
+      contact_layer   = self.layer_via1
+      bottom_enc      = int(self.met1_via1_enc*(1/self.layout.dbu))
+      contact_size    = int(self.via1_size    *(1/self.layout.dbu))
+      contact_spacing = int(self.via1_spacing *(1/self.layout.dbu))
+      top_enc         = int(self.met2_via1_enc*(1/self.layout.dbu))
+
+    elif self.selected_contact == "met2":
+      bottom_layer    = self.layer_met2
+      top_layer       = self.layer_met3
+      contact_layer   = self.layer_via2
+      bottom_enc      = int(self.met2_via2_enc*(1/self.layout.dbu))
+      contact_spacing = int(self.via2_spacing *(1/self.layout.dbu))
+      contact_size    = int(self.via2_size    *(1/self.layout.dbu))
+      top_enc         = int(self.met3_via2_enc*(1/self.layout.dbu))
+
+    elif self.selected_contact == "met3":
+      bottom_layer    = self.layer_met3
+      top_layer       = self.layer_met4
+      contact_layer   = self.layer_via3
+      bottom_enc      = int(self.met3_via3_enc*(1/self.layout.dbu))
+      contact_size    = int(self.via3_size    *(1/self.layout.dbu))
+      contact_spacing = int(self.via3_spacing *(1/self.layout.dbu))
+      top_enc         = int(self.met4_via3_enc*(1/self.layout.dbu))
+
+    elif self.selected_contact == "met4":
+      bottom_layer    = self.layer_met4
+      top_layer       = self.layer_met5
+      contact_layer   = self.layer_via4
+      bottom_enc      = int(self.met4_via4_enc*(1/self.layout.dbu))
+      contact_size    = int(self.via4_size    *(1/self.layout.dbu))
+      contact_spacing = int(self.via4_spacing *(1/self.layout.dbu))
+      top_enc         = int(self.met5_via4_enc*(1/self.layout.dbu))
+
+    elif self.selected_contact == "met5":
+      bottom_layer    = self.layer_met5
+      top_layer       = self.layer_met6
+      contact_layer   = self.layer_via5
+      bottom_enc      = int(self.met5_via5_enc*(1/self.layout.dbu))
+      contact_size    = int(self.via5_size    *(1/self.layout.dbu))
+      contact_spacing = int(self.via5_spacing *(1/self.layout.dbu))
+      top_enc         = int(self.met6_via5_enc*(1/self.layout.dbu))
+
+    elif self.selected_contact == "tap":
+      bottom_layer    = self.layer_tap
+      top_layer       = self.layer_li
+      contact_layer   = self.layer_licon
+      bottom_enc      = int(self.tap_con_enc  *(1/self.layout.dbu))
+      contact_size    = int(self.licon_size   *(1/self.layout.dbu))
+      contact_spacing = int(self.licon_spacing*(1/self.layout.dbu))
+      top_enc         = int(self.li_licon_enc *(1/self.layout.dbu)) 
+
+    # determine if we're using number of contacts or area
+    #if self.dx == 0 and self.dy == 0:
+
+    x_contacts = self.nx
+    y_contacts = self.ny
+
+    # calculate the area to be filled with metal
+    if self.x == 0:
+      bottom_width  = x_contacts*contact_size + (x_contacts-1)*contact_spacing + 2*bottom_enc
+      top_width     = x_contacts*contact_size + (x_contacts-1)*contact_spacing + 2*top_enc
+    else:
+      bottom_width  = self.x
+      top_width     = self.x
+    
+    if self.y == 0:
+      bottom_height = y_contacts*contact_size + (y_contacts-1)*contact_spacing + 2*bottom_enc
+      top_height    = y_contacts*contact_size + (y_contacts-1)*contact_spacing + 2*top_enc
+    else:
+      bottom_height = self.y
+      top_height    = self.y
+      
+    
+    
+    '''
+    else:
+
+      # calculate how many contacts can fit in the area
+      x_width = self.dx
+      y_height = self.dy
+
+      # take away the required space at the edges
+      bottom_x = x_width - 2*max(bottom_enc, top_enc)
+      bottom_y = y_height - 2*max(bottom_enc, top_enc)
+
+      # we can fit at least one contact
+      if bottom_x &gt; contact_size:
+
+        # can fit multiple contacts
+        if bottom_x &gt; 2*contact_size + contact_spacing:
+          x_contacts = int((bottom_x - contact_size) / (contact_size + contact_spacing))
+
+        # can only fit a single contact
+        else:
+          x_contacts = 1
+
+        # fill the whole area with metal
+        bottom_width = x_width
+        top_width = x_width
+
+      # can't put down any contact
+      else:
+        x_contacts = 0
+        assert x_contacts != 0, "Not enough horizontal space"
+
+      # we can fit at least one contact
+      if bottom_y &gt; contact_size:
+
+        # can fit multiple contacts
+        if bottom_y &gt; 2*contact_size + contact_spacing:
+          y_contacts = int((bottom_y - contact_size) / (contact_size + contact_spacing))
+
+        # can only fit a single contact
+        else:
+          y_contacts = 1
+
+        # fill the whole area with metal
+        bottom_height = y_height
+        top_height = y_height
+
+      # can't put down any contact
+      else:
+        y_contacts = 0
+        assert y_contacts != 0, "Not enough vertical space"
+    '''
+
+
+    # paint the bottom area
+    bottom_box = pya.Box()
+    bottom_box.left   = -bottom_width /2
+    bottom_box.bottom = -bottom_height/2
+    bottom_box.right  =  bottom_width /2
+    bottom_box.top    =  bottom_height/2
+    self.cell.shapes(bottom_layer).insert(bottom_box)
+
+
+    # paint the top area
+    top_box = pya.Box()
+    top_box.left   = -top_width /2
+    top_box.bottom = -top_height/2
+    top_box.right  =  top_width /2
+    top_box.top    =  top_height/2
+    self.cell.shapes(top_layer).insert(top_box)
+
+
+    # we want to know the extents of the drawn contacts
+    cont_extent_left   =  100000000
+    cont_extent_bottom =  100000000
+    cont_extent_right  = -100000000
+    cont_extent_top    = -100000000
+
+    # loop through drawing each of the contacts
+    contact_box = pya.Box()
+    for nx in range(int(x_contacts)):
+      for ny in range(int(y_contacts)):
+
+        # determine the location of the contacts
+        contact_box_left   = int(-(x_contacts*contact_size + (x_contacts-1)*contact_spacing)/2 + nx*(contact_size + contact_spacing))
+        contact_box_bottom = int(-(y_contacts*contact_size + (y_contacts-1)*contact_spacing)/2 + ny*(contact_size + contact_spacing))
+        contact_box_right  = int(contact_box_left + contact_size)
+        contact_box_top    = int(contact_box_bottom + contact_size)
+        
+        # draw the contact shape
+        contact_box.left   = contact_box_left  
+        contact_box.right  = contact_box_right 
+        contact_box.bottom = contact_box_bottom
+        contact_box.top    = contact_box_top   
+        self.cell.shapes(contact_layer).insert(contact_box)
+        
+        # update the known extents of the contacts
+        cont_extent_left   = min(cont_extent_left,   contact_box_left)
+        cont_extent_bottom = min(cont_extent_bottom, contact_box_bottom)
+        cont_extent_right  = max(cont_extent_right,  cont_extent_right, contact_box_right)
+        cont_extent_top    = max(cont_extent_top,    contact_box_top)
+
+
+    # if poly we require additional npc
+    #if self.selected_contact == "poly":
+    #  npc_box = pya.Box()
+    #  npc_box.left   = self.quantise(cont_extent_left   - self.npc_poly_con_enc)/self.layout.dbu
+    #  npc_box.bottom = self.quantise(cont_extent_bottom - self.npc_poly_con_enc)/self.layout.dbu
+    #  npc_box.right  = self.quantise(cont_extent_right  + self.npc_poly_con_enc)/self.layout.dbu
+    #  npc_box.top    = self.quantise(cont_extent_top    + self.npc_poly_con_enc)/self.layout.dbu
+    #  self.cell.shapes(self.layer_npc).insert(npc_box)
+
+
+
+
+# The PCell library declaration
+# A PCell library must be declared by deriving a custom class from RBA::Library.
+# The main purpose of this class is to provide the PCell declarations and to register itself
+# with a proper name.
+class PCellSky130(pya.Library):
+
+  def __init__(self):
+  
+    self.description = "Skywater 130nm PCELL Set"
+    
+    # register the PCell declarations
+    self.layout().register_pcell("contact", Contact())
+    
+    # register our library with the name "PCellLib"
+    self.register("sky130")
+    
+# instantiate and register the library
+PCellSky130()
+
+</text>
+</klayout-macro>
